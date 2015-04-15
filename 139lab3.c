@@ -122,7 +122,7 @@ void *consumer()
 	while(1)
 	{
 	//printf("Done? %d\n", done);
-	sem_getvalue(&item_avail, &slots);
+	sem_getvalue(&avail_item, &slots);
 	if(done==1 && slots==0){break;}
 	pthread_mutex_lock(&buf_lock);
 	while(buffer[in][0] == '\0')
