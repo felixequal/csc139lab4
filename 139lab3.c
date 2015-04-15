@@ -23,17 +23,17 @@ int done = 0;
 char* infile_name;
 char* outfile_name;
 FILE *infile, *outfile;
-sem_t buf_lock;
-sem_t slot_avail;
-sem_t item_avail;
+pthread_cond_t	empty_slot=PTHREAD_COND_INITIALIZER;
+pthread_cond_t  avail_item=PTHREAD_COND_INITIALIZER;
+pthread_mutex_t	buf_lock=PTHREAD_MUTEX_INITIALIZER;
 void *producer();
 void *consumer();
 	
 main (int argc, char *argv[])
 {
-	sem_init(&buf_lock, 0,1);
-	sem_init(&slot_avail,0,9);
-	sem_init(&item_avail,0,0); //init all semaphores. Slots available at init = 9. Items available = 0;
+	//sem_init(&buf_lock, 0,1);
+	//sem_init(&slot_avail,0,9);
+	//sem_init(&item_avail,0,0); //init all semaphores. Slots available at init = 9. Items available = 0;
 	int count = 1, argvcount = 0, matrixValueCount = 0;
 	size_t length = 0;
 	
@@ -78,6 +78,7 @@ fputc(c, outfile);
 void *producer()
 	{
 int in = 0;
+int full = 0;
 	pthread_t self_id;
 	self_id = pthread_self();
 	printf("producer: reporting in. Thread-id: %d Calculating..\n", self_id);	
@@ -85,16 +86,25 @@ while(1)
 {
 while(!feof(infile))
 {
-	sem_wait(&slot_avail);
-	sem_wait(&buf_lock);
+	pthread_mutex_lock(&buf_lock);
+	//sem_wait(&slot_avail);
+	//sem_wait(&buf_lock);
+	while(buffer[in][0] != '\0')
+	{
+		pthread_cond_wait(&empty_slot, &buf_lock);
+		full++;
+	}
+	full=0;
 	printf("buffer slot: %d\n", in);
 	fgets(buffer[in], 18, infile);
 	//puts(buffer[in]);
 	//	fputs(buffer[in], infile);
 		in = (in +1 ) % SLOTCOUNT;
 	//	printf("Buffer %d String: %s\n", in, buffer[in]);
-	sem_post(&buf_lock);
-	sem_post(&item_avail);	
+	pthread_cond_signal(&avail_item);
+	pthread_mutex_unlock(&buf_lock);
+	//sem_post(&buf_lock);
+	//sem_post(&item_avail);	
 	}
 	done=1;printf("Consumer: FOUND EOF.  Exiting\n");break;
 }
@@ -105,6 +115,7 @@ void *consumer()
 	{
 	int out=0;
 	int slots = 0;
+	int full = 0;
 	pthread_t self_id;
 	self_id = pthread_self();
 	printf("Consumer: reporting in. Thread-id: %d Calculating..\n", self_id);	
@@ -113,13 +124,23 @@ void *consumer()
 	//printf("Done? %d\n", done);
 	sem_getvalue(&item_avail, &slots);
 	if(done==1 && slots==0){break;}
-	sem_wait(&item_avail);
-	sem_wait(&buf_lock);
-	fputs(buffer[out], outfile);	
+	pthread_mutex_lock(&buf_lock);
+	while(buffer[in][0] == '\0')
+	{
+		pthread_cond_wait(&empty_slot, &buf_lock);
+		full++;
+	}
+	full=0;
+	//sem_wait(&item_avail);
+	//sem_wait(&buf_lock);
+	fputs(buffer[out], outfile);
+	buffer[out][0] = '\0';
 	printf("buffer out to file %d %s\n", out, buffer[out]);
 	out = (out+1)%SLOTCOUNT;
-	sem_post(&buf_lock);
-	sem_post(&slot_avail);
+	pthread_cond_signal(&empty_slot);
+	pthread_mutex_unlock(&buf_lock);
+	//sem_post(&buf_lock);
+	//sem_post(&slot_avail);
 	}	
 	printf("Consumer got done = 1 signal\n");
 	pthread_exit(0);
