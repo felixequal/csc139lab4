@@ -89,14 +89,11 @@ while(!feof(infile))
 	pthread_mutex_lock(&buf_lock);
 	//sem_wait(&slot_avail);
 	//sem_wait(&buf_lock);
-	while(buffer[in][0] != '\0' && in < 9)
+	/*while(full == 8)
 	{
 		pthread_cond_wait(&empty_slot, &buf_lock);
-		full++;
-		in++;
 	}
-	full=0;
-	in=0;
+	*/
 	printf("buffer slot: %d\n", in);
 	fgets(buffer[in], 18, infile);
 	//puts(buffer[in]);
@@ -127,20 +124,17 @@ void *consumer()
 	//sem_getvalue(&avail_item, &slots);
 	if(done==1 && slots==0){break;}
 	pthread_mutex_lock(&buf_lock);
-	while(buffer[out][0] == '\0' && out < 9)
+	/*while(out == 0)
 	{
 		pthread_cond_wait(&empty_slot, &buf_lock);
-		full++;
-		out++;
 	}
-	full=0;
-	out=0;
+	*/
 	//sem_wait(&item_avail);
 	//sem_wait(&buf_lock);
 	fputs(buffer[out], outfile);
-	buffer[out][0] = '\0';
+	//buffer[out][0] = '\0';
 	printf("buffer out to file %d %s\n", out, buffer[out]);
-	out = (out+1)%SLOTCOUNT;
+	out--;
 	pthread_cond_signal(&empty_slot);
 	pthread_mutex_unlock(&buf_lock);
 	//sem_post(&buf_lock);
