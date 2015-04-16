@@ -28,6 +28,7 @@ pthread_cond_t  avail_item=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t	buf_lock=PTHREAD_MUTEX_INITIALIZER;
 void *producer();
 void *consumer();
+int shared_buffer_counter = 0;
 	
 main (int argc, char *argv[])
 {
@@ -77,6 +78,7 @@ fputc(c, outfile);
 	
 void *producer()
 	{
+		//shared_buffer_counter = 0;
 int in = 0;
 int full = 0;
 	pthread_t self_id;
@@ -89,17 +91,19 @@ while(!feof(infile))
 	pthread_mutex_lock(&buf_lock);
 	//sem_wait(&slot_avail);
 	//sem_wait(&buf_lock);
-	while(shared_buffer_counter == SLOTCOUNT)
+	while(shared_buffer_counter == 8)
 	{
 		pthread_cond_wait(&empty_slot, &buf_lock);
 	}
 	
-	printf("buffer slot: %d\n", in);
+
 	fgets(buffer[in], 18, infile);
+	printf("Producer: putting stuff in buffer slot: %d | %s\n", in, buffer[in]);
 	//puts(buffer[in]);
 	//	fputs(buffer[in], infile);
 		in = (in +1) % SLOTCOUNT;
 		shared_buffer_counter+=1;
+		printf("P: SBC: %d\n", shared_buffer_counter);
 	//	printf("Buffer %d String: %s\n", in, buffer[in]);
 	pthread_cond_signal(&avail_item);
 	pthread_mutex_unlock(&buf_lock);
@@ -123,21 +127,22 @@ void *consumer()
 	{
 	//printf("Done? %d\n", done);
 	//sem_getvalue(&avail_item, &slots);
-	if(done==1 && slots==0){break;}
+	if(done==1 && shared_buffer_counter == 0){break;}
 	pthread_mutex_lock(&buf_lock);
 	while(shared_buffer_counter == 0)
 	{
-		pthread_cond_wait(&empty_slot, &buf_lock);
+		pthread_cond_wait(&avail_item, &buf_lock);
 	}
 	
 	//sem_wait(&item_avail);
 	//sem_wait(&buf_lock);
 	fputs(buffer[out], outfile);
 	//buffer[out][0] = '\0';
-	printf("buffer out to file %d %s\n", out, buffer[out]);
+	printf("Consumer: out to file %d %s\n", out, buffer[out]);
 	//out--;
 	out = (out+1)%SLOTCOUNT;
 	shared_buffer_counter-=1;
+	printf("C: SBC: %d\n", shared_buffer_counter);
 	pthread_cond_signal(&empty_slot);
 	pthread_mutex_unlock(&buf_lock);
 	//sem_post(&buf_lock);
